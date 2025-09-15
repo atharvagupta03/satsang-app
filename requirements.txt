@@ -1,0 +1,5 @@
+streamlit
+pandas
+smtplib
+email
+google-generativeai
