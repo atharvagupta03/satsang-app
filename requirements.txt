@@ -1,3 +1,5 @@
 streamlit
 pandas
-google-generativeai
+numpy
+scikit-learn
+PyPDF2
