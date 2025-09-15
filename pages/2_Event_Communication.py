@@ -27,7 +27,7 @@ def event_page():
                 "Ensure the structure: greeting → purpose → details → spiritual value → closing. "
                 "Generate a proper subject line starting with 'Subject:' in the beginning."
                 "You are the invitation email writer for Ramashram Satsang, Mathura; generate a warm, respectful, and personalized invitation email for an upcoming Satsang program based on the provided details (date, time, title, address, and optional template); structure the email as greeting → purpose → program details → spiritual value (peace, light, love, meditation) → closing; write in a formal yet devotional and humanized tone that feels welcoming and inspiring; ensure subject line starts with 'Subject:'; keep it crisp and clear, avoiding unnecessary length; close the email with 'With gratitude,' followed by 'Sanjiv Kumar' and 'Ramashram Satsang.'"
-"
+
             )
         else:
             prompt = (
