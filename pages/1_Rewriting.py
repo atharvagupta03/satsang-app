@@ -6,6 +6,7 @@ import time
 from typing import List, Tuple
 
 import streamlit as st
+from dotenv import load_dotenv
 import pandas as pd
 import numpy as np
 from PyPDF2 import PdfReader
@@ -17,16 +18,17 @@ from email.mime.text import MIMEText
 import google.generativeai as genai
 
 # ---------------------------
-# Authentication check (do NOT change)
+# Authentication check 
 # ---------------------------
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     st.warning("Please login from Home page to continue.")
     st.stop()
 
 # ---------------------------
-# Gemini / LLM config (use env var)
+# Gemini config
 # ---------------------------
-GENAI_API_KEY = "AIzaSyCNtyOWxO9MXLIoZf89d7n6vJEFPrdwoOc"
+load_dotenv()
+GENAI_API_KEY = os.getenv("GENAI_API_KEY")
 genai.configure(api_key=GENAI_API_KEY)
 
 # Default model and LLM params (same as your production code)
@@ -176,7 +178,7 @@ def build_llm_prompt(selected_chunks: List[Tuple[int,float,str,int,int]], topic:
         "6) Avoid adding any background not present in the sources. Keep tone consistent with requested style.\n\n"
         "SOURCES:\n"
         + sources_text +
-        "\n\nProduce the blog now."
+        "\n\n"
     )
 
     return system_prompt, user_instructions
@@ -228,7 +230,7 @@ def send_emails_smtp(smtp_server: str, smtp_port: int, username: str, password: 
 
 st.title("Rewriting Module")
 
-tabs = st.tabs(["Summarize", "Rephrase (guided)", "Translate (EN ↔ HI)", "Blog Summarizer"])
+tabs = st.tabs(["Summarize", "Rephrase (guided)", "Translate (EN ↔ HI)", "prompt input"])
 
 # --- SESSION KEYS: ensure persistence, unique keys used in UI widgets
 if "summarize_input" not in st.session_state:
@@ -306,7 +308,7 @@ with tabs[1]:
     if st.button("Generate Rephrase", key="rephrase_go"):
         if st.session_state["rephrase_input"].strip() and st.session_state["rephrase_instruction"].strip():
             prompt = (
-                f"Rephrase the following text based on the user's intent. User instruction:\n\n"
+                f"You are the rephraser for Ramashram Satsang, Mathura; your task is to take the provided text and, with guidance from the user on how they want it to sound (tone, style, emphasis), rephrase it into a very humanized, natural, and devotional form that reflects light, love, peace, and meditation; preserve the original meaning and spiritual depth, but adjust expression to align with user’s intent; write in warm, inspiring, and human language, retaining spiritual terms (Dhyan, Satsang, Transcendent Light) in transliteration when needed; output plain polished text that feels authentic and heartfelt. \n\n"
                 f"{st.session_state['rephrase_instruction']}\n\n"
                 f"Original Text:\n{st.session_state['rephrase_input']}\n\n"
                 f"Provide a polished, faithful rephrasing that preserves meaning and follows the user's instruction."
@@ -338,9 +340,9 @@ with tabs[2]:
     if st.button("Translate Now", key="translate_go"):
         if st.session_state["translate_input"].strip():
             if direction == "English → Hindi":
-                prompt = f"Translate the following English text to Hindi:\n\n{st.session_state['translate_input']}"
+                prompt = f"Translate the following English text to Hindi with the following instructions -  You are the translator for Ramashram Satsang, Mathura; your task is to translate the provided text faithfully into the target language while ensuring the meaning, spiritual values, and essence are never lost; preserve the devotional depth, light, love, peace, and meditation focus of the content; use very humanized, natural, and inspiring language, never mechanical; retain spiritual terms (Dhyan, Satsang, Transcendent Light) in transliteration when appropriate; output plain polished text that feels authentic, warm, and spiritually alive. \n\n{st.session_state['translate_input']}"
             else:
-                prompt = f"Translate the following Hindi text to English:\n\n{st.session_state['translate_input']}"
+                prompt = f"Translate the following Hindi text to English with the following instructions - You are the translator for Ramashram Satsang, Mathura; your task is to translate the provided text faithfully into the target language while ensuring the meaning, spiritual values, and essence are never lost; preserve the devotional depth, light, love, peace, and meditation focus of the content; use very humanized, natural, and inspiring language, never mechanical; retain spiritual terms (Dhyan, Satsang, Transcendent Light) in transliteration when appropriate; output plain polished text that feels authentic, warm, and spiritually alive. :\n\n{st.session_state['translate_input']}"
             out = call_gemini_simple(prompt)
             st.session_state["translation"] = out
             st.session_state["translate_dir_idx"] = 0 if direction == "English → Hindi" else 1
@@ -355,132 +357,187 @@ with tabs[2]:
                                                        key="translation_edit_area")
 
 # ---------------------------
-# Tab: Blog Summarizer (production code integrated)
+# Tab: Prompt Input (freeform)
 # ---------------------------
 with tabs[3]:
-    st.header("Blog Summarizer (Book → Blog — TF-IDF retrieval, Gemini generation)")
-    st.markdown("Upload a PDF, enter topic/keyword(s), select retrieval settings, generate a blog from selected passages, edit it, and email to recipients.")
+    st.header("Prompt Input")
 
-    col1, col2 = st.columns([2, 1])
+    # Ensure separate state keys for this tab
+    if "freeform_prompt" not in st.session_state:
+        st.session_state["freeform_prompt"] = ""
+    if "freeform_output" not in st.session_state:
+        st.session_state["freeform_output"] = ""
 
-    with col1:
-        pdf_file = st.file_uploader("Upload book PDF", type=["pdf"], key="blog_pdf_uploader")
-        topic = st.text_input("Topic / keyword(s)", value=st.session_state.get("blog_topic", ""), key="blog_topic_input")
-        style = st.selectbox("Writing style", ["Neutral and clear", "Conversational", "Formal", "Reflective"], index=0, key="blog_style")
-        blog_length = st.selectbox("Desired blog length", ["Short (~400-600 words)", "Medium (~600-900 words)", "Long (~900-1500 words)"], index=1, key="blog_length_select")
-        if pdf_file:
-            if pdf_file.size > MAX_UPLOAD_MB * 1024 * 1024:
-                st.error(f"Uploaded file size exceeds {MAX_UPLOAD_MB} MB limit.")
-            else:
-                raw_bytes = pdf_file.read()
-                chunks = read_pdf_bytes(raw_bytes)
-                st.success(f"Extracted {len(chunks)} candidate chunks from PDF.")
-                if len(chunks) > 0:
-                    sample_preview = chunks[0][0][:800] + ("..." if len(chunks[0][0]) > 800 else "")
-                    st.text_area("Sample chunk preview (first chunk)", value=sample_preview, height=200, key="sample_preview_area")
-        else:
-            chunks = None
+    # Text area for user prompt
+    st.session_state["freeform_prompt"] = st.text_area(
+        "Enter your prompt for Gemini:",
+        value=st.session_state["freeform_prompt"],
+        height=200,
+        key="freeform_prompt_area"
+    )
 
-    with col2:
-        top_k = st.number_input("Max chunks to select", min_value=1, max_value=12, value=TOP_K_CHUNKS, key="top_k_input")
-        max_chars = st.number_input("Max characters to send to LLM", min_value=5000, max_value=80000, value=MAX_SELECTED_CHARS, step=1000, key="max_chars_input")
-        if st.button("Find relevant passages & prepare prompt", disabled=(chunks is None or not topic.strip()), key="find_passages_btn"):
-            with st.spinner("Building TF-IDF index..."):
-                vectorizer, tfidf_matrix = build_tfidf_index(chunks)
-            with st.spinner("Querying top chunks..."):
-                selected, similarities = query_top_chunks(topic, chunks, vectorizer, tfidf_matrix, top_k=int(top_k))
-            if not selected:
-                st.warning("No relevant passages found.")
-            else:
-                st.success(f"Selected {len(selected)} chunks.")
-                sel_info = []
-                for i, (idx, score, text, sp, ep) in enumerate(selected, start=1):
-                    snippet = text[:600] + ("..." if len(text) > 600 else "")
-                    sel_info.append({"source_id": f"SOURCE {i}", "pages": f"{sp}-{ep}", "score": float(score), "snippet": snippet})
-                df_sel = pd.DataFrame(sel_info)
-                st.dataframe(df_sel[["source_id", "pages", "score"]], use_container_width=True)
-
-                labeled_selected = []
-                for i, (idx, score, text, sp, ep) in enumerate(selected, start=1):
-                    labeled_selected.append((idx, float(score), text, sp, ep))
-                system_prompt, user_prompt = build_llm_prompt(labeled_selected, topic, style, blog_length)
-                st.session_state["llm_system"] = system_prompt
-                st.session_state["llm_user"] = user_prompt
-                st.session_state["selected_chunks"] = labeled_selected
-
-    st.markdown("---")
-    st.header("Generate & Edit Blog")
-    col_a, col_b = st.columns([2, 1])
-    with col_a:
-        if st.button("Generate blog (Gemini)", disabled=("selected_chunks" not in st.session_state or not st.session_state["selected_chunks"]), key="generate_blog_btn"):
-            if "llm_system" not in st.session_state or "llm_user" not in st.session_state:
-                st.error("No prompt available.")
-            else:
-                try:
-                    with st.spinner("Calling Gemini..."):
-                        blog_text = call_gemini_with_config(st.session_state["llm_system"], st.session_state["llm_user"])
-                        st.session_state["generated_blog"] = blog_text
-                        st.success("Blog generated.")
-                except Exception as e:
-                    st.error(f"Gemini call failed: {e}")
-
-        generated = st.session_state.get("generated_blog", "")
-        st.subheader("Generated blog (editable)")
-        st.session_state["edited_blog"] = st.text_area("Edit the blog here:", value=generated, height=400, key="edited_blog_area")
-
-    with col_b:
-        st.subheader("Selected sources")
-        if st.session_state.get("selected_chunks"):
-            for i, (idx, score, text, sp, ep) in enumerate(st.session_state["selected_chunks"], start=1):
-                st.markdown(f"**SOURCE {i}** — pages {sp}-{ep} — relevance {score:.3f}")
-                st.write(text[:400] + ("..." if len(text) > 400 else ""))
-                st.markdown("---")
-
-    st.markdown("---")
-    st.header("Email: preview & send (optional)")
-    st.write("Upload CSV with at least an 'email' column. Optional 'name' column. Use `{name}` placeholder in body.")
-
-    csv_file = st.file_uploader("Upload recipients CSV", type=["csv"], key="recipients_csv")
-    sender_email = st.text_input("Sender email (from)", value=os.getenv("SENDER_EMAIL") or "", key="sender_email_input")
-    sender_name = st.text_input("Sender name", value=os.getenv("SENDER_NAME") or "", key="sender_name_input")
-    smtp_server = st.text_input("SMTP server", value=os.getenv("SMTP_SERVER") or "smtp.gmail.com", key="smtp_server_input")
-    smtp_port = st.number_input("SMTP port", value=int(os.getenv("SMTP_PORT") or 587), key="smtp_port_input")
-    smtp_username = st.text_input("SMTP username", value=os.getenv("SMTP_USERNAME") or sender_email, key="smtp_username_input")
-    smtp_password = st.text_input("SMTP password / app password", type="password", value=os.getenv("SMTP_PASSWORD") or "", key="smtp_password_input")
-
-    email_subject = st.text_input("Email subject", value="A blog I thought you'd like", key="email_subject_input")
-    email_preview = st.text_area("Email HTML body", value=st.session_state.get("edited_blog", ""), height=300, key="email_preview_area")
-
-    col_send1, col_send2 = st.columns([1, 1])
-    with col_send1:
-        if st.button("Preview recipients", disabled=(csv_file is None), key="preview_recipients_btn"):
+    # Generate button
+    if st.button("Generate Response", key="freeform_go"):
+        if st.session_state["freeform_prompt"].strip():
             try:
-                recipients_df = pd.read_csv(csv_file)
-                st.session_state["recipients_df"] = recipients_df
-                st.dataframe(recipients_df.head(20), use_container_width=True)
-                st.success(f"{len(recipients_df)} recipients loaded.")
+                out = call_gemini_simple(st.session_state["freeform_prompt"])
+                st.session_state["freeform_output"] = out
             except Exception as e:
-                st.error(f"Failed to read CSV: {e}")
+                st.error(f"Error generating response: {e}")
+        else:
+            st.warning("Please enter a prompt.")
 
-    with col_send2:
-        if st.button("Send emails", disabled=("recipients_df" not in st.session_state or not smtp_password or not sender_email), key="send_emails_btn"):
-            recipients_df = st.session_state.get("recipients_df")
-            if recipients_df is None or "email" not in recipients_df.columns:
-                st.error("Recipients CSV missing or no 'email' column.")
-            else:
-                with st.spinner("Sending emails..."):
-                    body_html = email_preview.replace("\n", "<br/>")
-                    results = send_emails_smtp(
-                        smtp_server=smtp_server, smtp_port=int(smtp_port),
-                        username=smtp_username, password=smtp_password,
-                        sender_name=sender_name or sender_email, sender_email=sender_email,
-                        subject=email_subject, body_html=body_html,
-                        recipients_df=recipients_df, dry_run=False
-                    )
-                    st.success(f"Sent: {len(results['sent'])}, Failed: {len(results['failed'])}")
-                    if results["failed"]:
-                        st.write("Failed details:")
-                        st.json(results["failed"])
+    # Editable output box
+    if st.session_state["freeform_output"]:
+        st.subheader("Generated Response (editable)")
+        st.session_state["freeform_output"] = st.text_area(
+            "Editable Response",
+            value=st.session_state["freeform_output"],
+            height=300,
+            key="freeform_output_area"
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ---------------------------
+# Tab: Blog Summarizer (production code integrated)
+# ---------------------------
+# with tabs[3]:
+#     st.header("Blog Summarizer (Book → Blog — TF-IDF retrieval, Gemini generation)")
+#     st.markdown("Upload a PDF, enter topic/keyword(s), select retrieval settings, generate a blog from selected passages, edit it, and email to recipients.")
+
+#     col1, col2 = st.columns([2, 1])
+
+#     with col1:
+#         pdf_file = st.file_uploader("Upload book PDF", type=["pdf"], key="blog_pdf_uploader")
+#         topic = st.text_input("Topic / keyword(s)", value=st.session_state.get("blog_topic", ""), key="blog_topic_input")
+#         style = st.selectbox("Writing style", ["Neutral and clear", "Conversational", "Formal", "Reflective"], index=0, key="blog_style")
+#         blog_length = st.selectbox("Desired blog length", ["Short (~400-600 words)", "Medium (~600-900 words)", "Long (~900-1500 words)"], index=1, key="blog_length_select")
+#         if pdf_file:
+#             if pdf_file.size > MAX_UPLOAD_MB * 1024 * 1024:
+#                 st.error(f"Uploaded file size exceeds {MAX_UPLOAD_MB} MB limit.")
+#             else:
+#                 raw_bytes = pdf_file.read()
+#                 chunks = read_pdf_bytes(raw_bytes)
+#                 st.success(f"Extracted {len(chunks)} candidate chunks from PDF.")
+#                 if len(chunks) > 0:
+#                     sample_preview = chunks[0][0][:800] + ("..." if len(chunks[0][0]) > 800 else "")
+#                     st.text_area("Sample chunk preview (first chunk)", value=sample_preview, height=200, key="sample_preview_area")
+#         else:
+#             chunks = None
+
+#     with col2:
+#         top_k = st.number_input("Max chunks to select", min_value=1, max_value=12, value=TOP_K_CHUNKS, key="top_k_input")
+#         max_chars = st.number_input("Max characters to send to LLM", min_value=5000, max_value=80000, value=MAX_SELECTED_CHARS, step=1000, key="max_chars_input")
+#         if st.button("Find relevant passages & prepare prompt", disabled=(chunks is None or not topic.strip()), key="find_passages_btn"):
+#             with st.spinner("Building TF-IDF index..."):
+#                 vectorizer, tfidf_matrix = build_tfidf_index(chunks)
+#             with st.spinner("Querying top chunks..."):
+#                 selected, similarities = query_top_chunks(topic, chunks, vectorizer, tfidf_matrix, top_k=int(top_k))
+#             if not selected:
+#                 st.warning("No relevant passages found.")
+#             else:
+#                 st.success(f"Selected {len(selected)} chunks.")
+#                 sel_info = []
+#                 for i, (idx, score, text, sp, ep) in enumerate(selected, start=1):
+#                     snippet = text[:600] + ("..." if len(text) > 600 else "")
+#                     sel_info.append({"source_id": f"SOURCE {i}", "pages": f"{sp}-{ep}", "score": float(score), "snippet": snippet})
+#                 df_sel = pd.DataFrame(sel_info)
+#                 st.dataframe(df_sel[["source_id", "pages", "score"]], use_container_width=True)
+
+#                 labeled_selected = []
+#                 for i, (idx, score, text, sp, ep) in enumerate(selected, start=1):
+#                     labeled_selected.append((idx, float(score), text, sp, ep))
+#                 system_prompt, user_prompt = build_llm_prompt(labeled_selected, topic, style, blog_length)
+#                 st.session_state["llm_system"] = system_prompt
+#                 st.session_state["llm_user"] = user_prompt
+#                 st.session_state["selected_chunks"] = labeled_selected
+
+#     st.markdown("---")
+#     st.header("Generate & Edit Blog")
+#     col_a, col_b = st.columns([2, 1])
+#     with col_a:
+#         if st.button("Generate blog (Gemini)", disabled=("selected_chunks" not in st.session_state or not st.session_state["selected_chunks"]), key="generate_blog_btn"):
+#             if "llm_system" not in st.session_state or "llm_user" not in st.session_state:
+#                 st.error("No prompt available.")
+#             else:
+#                 try:
+#                     with st.spinner("Calling Gemini..."):
+#                         blog_text = call_gemini_with_config(st.session_state["llm_system"], st.session_state["llm_user"])
+#                         st.session_state["generated_blog"] = blog_text
+#                         st.success("Blog generated.")
+#                 except Exception as e:
+#                     st.error(f"Gemini call failed: {e}")
+
+#         generated = st.session_state.get("generated_blog", "")
+#         st.subheader("Generated blog (editable)")
+#         st.session_state["edited_blog"] = st.text_area("Edit the blog here:", value=generated, height=400, key="edited_blog_area")
+
+#     with col_b:
+#         st.subheader("Selected sources")
+#         if st.session_state.get("selected_chunks"):
+#             for i, (idx, score, text, sp, ep) in enumerate(st.session_state["selected_chunks"], start=1):
+#                 st.markdown(f"**SOURCE {i}** — pages {sp}-{ep} — relevance {score:.3f}")
+#                 st.write(text[:400] + ("..." if len(text) > 400 else ""))
+#                 st.markdown("---")
+
+#     st.markdown("---")
+#     st.header("Email: preview & send (optional)")
+#     st.write("Upload CSV with at least an 'email' column. Optional 'name' column. Use `{name}` placeholder in body.")
+
+#     csv_file = st.file_uploader("Upload recipients CSV", type=["csv"], key="recipients_csv")
+#     sender_email = st.text_input("Sender email (from)", value=os.getenv("SENDER_EMAIL") or "", key="sender_email_input")
+#     sender_name = st.text_input("Sender name", value=os.getenv("SENDER_NAME") or "", key="sender_name_input")
+#     smtp_server = st.text_input("SMTP server", value=os.getenv("SMTP_SERVER") or "smtp.gmail.com", key="smtp_server_input")
+#     smtp_port = st.number_input("SMTP port", value=int(os.getenv("SMTP_PORT") or 587), key="smtp_port_input")
+#     smtp_username = st.text_input("SMTP username", value=os.getenv("SMTP_USERNAME") or sender_email, key="smtp_username_input")
+#     smtp_password = st.text_input("SMTP password / app password", type="password", value=os.getenv("SMTP_PASSWORD") or "", key="smtp_password_input")
+
+#     email_subject = st.text_input("Email subject", value="A blog I thought you'd like", key="email_subject_input")
+#     email_preview = st.text_area("Email HTML body", value=st.session_state.get("edited_blog", ""), height=300, key="email_preview_area")
+
+#     col_send1, col_send2 = st.columns([1, 1])
+#     with col_send1:
+#         if st.button("Preview recipients", disabled=(csv_file is None), key="preview_recipients_btn"):
+#             try:
+#                 recipients_df = pd.read_csv(csv_file)
+#                 st.session_state["recipients_df"] = recipients_df
+#                 st.dataframe(recipients_df.head(20), use_container_width=True)
+#                 st.success(f"{len(recipients_df)} recipients loaded.")
+#             except Exception as e:
+#                 st.error(f"Failed to read CSV: {e}")
+
+#     with col_send2:
+#         if st.button("Send emails", disabled=("recipients_df" not in st.session_state or not smtp_password or not sender_email), key="send_emails_btn"):
+#             recipients_df = st.session_state.get("recipients_df")
+#             if recipients_df is None or "email" not in recipients_df.columns:
+#                 st.error("Recipients CSV missing or no 'email' column.")
+#             else:
+#                 with st.spinner("Sending emails..."):
+#                     body_html = email_preview.replace("\n", "<br/>")
+#                     results = send_emails_smtp(
+#                         smtp_server=smtp_server, smtp_port=int(smtp_port),
+#                         username=smtp_username, password=smtp_password,
+#                         sender_name=sender_name or sender_email, sender_email=sender_email,
+#                         subject=email_subject, body_html=body_html,
+#                         recipients_df=recipients_df, dry_run=False
+#                     )
+#                     st.success(f"Sent: {len(results['sent'])}, Failed: {len(results['failed'])}")
+#                     if results["failed"]:
+#                         st.write("Failed details:")
+#                         st.json(results["failed"])
 
 
 

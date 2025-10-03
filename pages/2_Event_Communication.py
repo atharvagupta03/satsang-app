@@ -14,33 +14,82 @@ def event_page():
     st.title("Invitation for Satsang - Email Sender")
 
     # ===== Generate Invitation Function =====
+    # def generate_invitation(date_for_satsang, address_of_satsang, time_of_satsang,
+    #                         program_title, content_type, selected_template_text=None):
+    #     if selected_template_text:
+    #         prompt = (
+    #             f"You are the invitation email writer for Ramashram Satsang, Mathura.\n"
+    #             f"Details:\n"
+    #             f"- Date: {date_for_satsang}\n"
+    #             f"- Time: {time_of_satsang}\n"
+    #             f"- Title: {program_title}\n"
+    #             f"- Address: {address_of_satsang}\n\n"
+    #             f"Below is a sample template for reference. Use it only as inspiration for tone, style, and structure. "
+    #             f"Do not copy it directly — rewrite the email in your own fresh words while keeping the message clear, respectful, and devotional.\n\n"
+    #             f"Template (for reference only):\n{selected_template_text}\n\n"
+    #             f"Requirements:\n"
+    #             f"- Subject line must start with 'Subject:'.\n"
+    #             f"- Structure: greeting → purpose → program details → spiritual value (peace, light, love, meditation) → closing.\n"
+    #             f"- Tone: formal, warm, devotional, grammatically perfect.\n"
+    #             f"- Closing: 'With gratitude,' followed by 'Sanjiv Kumar' and 'Ramashram Satsang.'\n"
+    #             f"- Keep it crisp, clear, and not unnecessarily long.\n"
+    #         )
+
+    #     else:
+    #         prompt = (
+    #             f"Generate a formal, respectful, and detailed {content_type} email for a satsang program.\n"
+    #             f"Date: {date_for_satsang}, Time: {time_of_satsang}, Title: {program_title}, Address: {address_of_satsang}.\n"
+    #             "The email should be polite, elaborate, and professional. "
+    #             "Generate a proper subject line starting with 'Subject:' in the beginning."
+    #             "You are the invitation email writer for Ramashram Satsang, Mathura; generate a warm, respectful, and personalized invitation email for an upcoming Satsang program based on the provided details (date, time, title, address, and optional template); structure the email as greeting → purpose → program details → spiritual value (peace, light, love, meditation) → closing; write in a formal yet devotional and humanized tone that feels welcoming and inspiring; ensure subject line starts with 'Subject:'; keep it crisp and clear, avoiding unnecessary length; close the email with 'With gratitude,' followed by 'Sanjiv Kumar' and 'Ramashram Satsang.'"
+
+    #         )
     def generate_invitation(date_for_satsang, address_of_satsang, time_of_satsang,
-                            program_title, content_type, selected_template_text=None):
+                        program_title, content_type, selected_template_text=None):
         if selected_template_text:
             prompt = (
-                f"You will be given a satsang program with the following details:\n"
-                f"Date: {date_for_satsang}\nTime: {time_of_satsang}\nTitle: {program_title}\nAddress: {address_of_satsang}\n\n"
-                f"You must generate a formal, respectful, and detailed email of type '{content_type}' using the following template:\n\n"
-                f"Template: {selected_template_text}\n\n"
-                "The output must strictly follow the tone: formal, polite, disciplined, and grammatically perfect. "
-                "The email should be short, crisp and to the point. Don't stretch the email unnecessarily. Avoid casual words, slang, or irrelevant details. "
-                "Ensure the structure: greeting → purpose → details → spiritual value → closing. "
-                "Generate a proper subject line starting with 'Subject:' in the beginning."
-                "You are the invitation email writer for Ramashram Satsang, Mathura; generate a warm, respectful, and personalized invitation email for an upcoming Satsang program based on the provided details (date, time, title, address, and optional template); structure the email as greeting → purpose → program details → spiritual value (peace, light, love, meditation) → closing; write in a formal yet devotional and humanized tone that feels welcoming and inspiring; ensure subject line starts with 'Subject:'; keep it crisp and clear, avoiding unnecessary length; close the email with 'With gratitude,' followed by 'Sanjiv Kumar' and 'Ramashram Satsang.'"
-"
+                f"You are the official email writer for Ramashram Satsang, Mathura.\n"
+                f"Program Details:\n"
+                f"- Date: {date_for_satsang}\n"
+                f"- Time: {time_of_satsang}\n"
+                f"- Title: {program_title}\n"
+                f"- Address: {address_of_satsang}\n\n"
+                f"The following template is provided for style guidance only. "
+                f"Use it for tone, structure, and inspiration, but DO NOT copy it word for word. "
+                f"Instead, rewrite a fresh, unique, and polished {content_type} email:\n\n"
+                f"Template (reference only):\n{selected_template_text}\n\n"
+                f"Requirements:\n"
+                f"- Subject line must begin with 'Subject:'.\n"
+                f"- Structure: greeting → purpose → program details → spiritual value (peace, light, love, meditation) → closing.\n"
+                f"- Tone: formal, devotional, warm, grammatically perfect.\n"
+                f"- Keep it crisp and clear (short, not stretched).\n"
+                f"- Closing must be: 'With gratitude,' followed by 'Sanjiv Kumar' and 'Ramashram Satsang.'\n"
             )
         else:
             prompt = (
-                f"Generate a formal, respectful, and detailed {content_type} email for a satsang program.\n"
-                f"Date: {date_for_satsang}, Time: {time_of_satsang}, Title: {program_title}, Address: {address_of_satsang}.\n"
-                "The email should be polite, elaborate, and professional. "
-                "Generate a proper subject line starting with 'Subject:' in the beginning."
-                "You are the invitation email writer for Ramashram Satsang, Mathura; generate a warm, respectful, and personalized invitation email for an upcoming Satsang program based on the provided details (date, time, title, address, and optional template); structure the email as greeting → purpose → program details → spiritual value (peace, light, love, meditation) → closing; write in a formal yet devotional and humanized tone that feels welcoming and inspiring; ensure subject line starts with 'Subject:'; keep it crisp and clear, avoiding unnecessary length; close the email with 'With gratitude,' followed by 'Sanjiv Kumar' and 'Ramashram Satsang.'"
-
+                f"Generate a formal, devotional {content_type} email for Ramashram Satsang, Mathura.\n"
+                f"Program Details:\n"
+                f"- Date: {date_for_satsang}\n"
+                f"- Time: {time_of_satsang}\n"
+                f"- Title: {program_title}\n"
+                f"- Address: {address_of_satsang}\n\n"
+                f"Requirements:\n"
+                f"- Subject line must begin with 'Subject:'.\n"
+                f"- Structure: greeting → purpose → program details → spiritual value (peace, light, love, meditation) → closing.\n"
+                f"- Tone: formal, devotional, warm, grammatically perfect.\n"
+                f"- Keep it crisp and clear (short, not stretched).\n"
+                f"- Closing must be: 'With gratitude,' followed by 'Sanjiv Kumar' and 'Ramashram Satsang.'\n"
             )
 
+    # # --- Gemini API call ---
+    # api_key = st.secrets["GEMINI_API_KEY"]  # safer than hardcoding
+    # genai.configure(api_key=api_key)
+    # model = genai.GenerativeModel("gemini-2.5-flash")
+    # response = model.generate_content(prompt)
+    # return response.text
+
         # --- Gemini API call ---
-        api_key = os.getenv("GENAI_API_KEY")
+        api_key = "AIzaSyCNtyOWxO9MXLIoZf89d7n6vJEFPrdwoOc"
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content(prompt)
@@ -85,7 +134,7 @@ def event_page():
         program_title = st.text_input("Enter title of the program")
         content_type = st.selectbox(
             "Select type of email",
-            ["Invitation", "Reminder", "Feedback", "Thanks for attending"]
+            ["Invitation", "Reminder", "Feedback", "Thanks for attending", "Follow-up Post Event"]
         )
 
         template_file = st.file_uploader("Upload Template CSV (columns: type, template)", type=["csv"])
