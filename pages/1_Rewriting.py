@@ -6,10 +6,10 @@ import time
 from typing import List, Tuple
 
 import streamlit as st
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 import pandas as pd
 import numpy as np
-from PyPDF2 import PdfReader
+# from PyPDF2 import PdfReader
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 import smtplib
