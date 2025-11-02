@@ -61,93 +61,93 @@ def call_gemini_simple(prompt: str):
 # ---------------------------
 # Utility: PDF chunking + retrieval (exact production logic)
 # ---------------------------
-MAX_PDF_PAGES = 1000
-MAX_UPLOAD_MB = 40
-MAX_SELECTED_CHARS = 30000
-TOP_K_CHUNKS = 6
+# MAX_PDF_PAGES = 1000
+# MAX_UPLOAD_MB = 40
+# MAX_SELECTED_CHARS = 30000
+# TOP_K_CHUNKS = 6
 
-def read_pdf_bytes(pdf_bytes: bytes) -> List[Tuple[str, int, int]]:
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    n_pages = min(len(reader.pages), MAX_PDF_PAGES)
-    page_texts = []
-    for i in range(n_pages):
-        try:
-            text = reader.pages[i].extract_text() or ""
-        except Exception:
-            text = ""
-        text = re.sub(r'\s+', ' ', text).strip()
-        page_texts.append((text, i + 1))
-    joined = []
-    for t, p in page_texts:
-        joined.append(f"[PAGE {p}]\n{t}")
-    full = "\n".join(joined)
+# def read_pdf_bytes(pdf_bytes: bytes) -> List[Tuple[str, int, int]]:
+#     reader = PdfReader(io.BytesIO(pdf_bytes))
+#     n_pages = min(len(reader.pages), MAX_PDF_PAGES)
+#     page_texts = []
+#     for i in range(n_pages):
+#         try:
+#             text = reader.pages[i].extract_text() or ""
+#         except Exception:
+#             text = ""
+#         text = re.sub(r'\s+', ' ', text).strip()
+#         page_texts.append((text, i + 1))
+#     joined = []
+#     for t, p in page_texts:
+#         joined.append(f"[PAGE {p}]\n{t}")
+#     full = "\n".join(joined)
 
-    chapter_positions = []
-    for match in re.finditer(r'(Chapter|CHAPTER|Part|PART|BOOK|Book)\s+([IVX0-9A-Za-z\-]+)', full):
-        chapter_positions.append(match.start())
+#     chapter_positions = []
+#     for match in re.finditer(r'(Chapter|CHAPTER|Part|PART|BOOK|Book)\s+([IVX0-9A-Za-z\-]+)', full):
+#         chapter_positions.append(match.start())
 
-    chunks = []
-    if len(chapter_positions) >= 2:
-        positions = chapter_positions + [len(full)]
-        for i in range(len(chapter_positions)):
-            s = positions[i]
-            e = positions[i+1]
-            snippet = full[s:e].strip()
-            pages = re.findall(r'\[PAGE (\d+)\]', snippet)
-            if pages:
-                start_page = int(pages[0])
-                end_page = int(pages[-1])
-            else:
-                start_page = 1
-                end_page = 1
-            chunks.append((snippet, start_page, end_page))
-    else:
-        current_chunk = []
-        current_chars = 0
-        start_page = None
-        for page_text, p in page_texts:
-            if start_page is None:
-                start_page = p
-            block = f"[PAGE {p}]\n{page_text}"
-            current_chunk.append(block)
-            current_chars += len(block)
-            if current_chars > 4000:
-                chunk_text = "\n".join(current_chunk).strip()
-                chunks.append((chunk_text, start_page, p))
-                current_chunk = []
-                current_chars = 0
-                start_page = None
-        if current_chunk:
-            chunk_text = "\n".join(current_chunk).strip()
-            last_page = page_texts[-1][1] if page_texts else 1
-            chunks.append((chunk_text, start_page or 1, last_page))
+#     chunks = []
+#     if len(chapter_positions) >= 2:
+#         positions = chapter_positions + [len(full)]
+#         for i in range(len(chapter_positions)):
+#             s = positions[i]
+#             e = positions[i+1]
+#             snippet = full[s:e].strip()
+#             pages = re.findall(r'\[PAGE (\d+)\]', snippet)
+#             if pages:
+#                 start_page = int(pages[0])
+#                 end_page = int(pages[-1])
+#             else:
+#                 start_page = 1
+#                 end_page = 1
+#             chunks.append((snippet, start_page, end_page))
+#     else:
+#         current_chunk = []
+#         current_chars = 0
+#         start_page = None
+#         for page_text, p in page_texts:
+#             if start_page is None:
+#                 start_page = p
+#             block = f"[PAGE {p}]\n{page_text}"
+#             current_chunk.append(block)
+#             current_chars += len(block)
+#             if current_chars > 4000:
+#                 chunk_text = "\n".join(current_chunk).strip()
+#                 chunks.append((chunk_text, start_page, p))
+#                 current_chunk = []
+#                 current_chars = 0
+#                 start_page = None
+#         if current_chunk:
+#             chunk_text = "\n".join(current_chunk).strip()
+#             last_page = page_texts[-1][1] if page_texts else 1
+#             chunks.append((chunk_text, start_page or 1, last_page))
 
-    final = [(c, s if s else 1, e if e else 1) for (c, s, e) in chunks if c and len(c) > 50]
-    return final
+#     final = [(c, s if s else 1, e if e else 1) for (c, s, e) in chunks if c and len(c) > 50]
+#     return final
 
-def build_tfidf_index(chunks: List[Tuple[str, int, int]]):
-    texts = [c[0] for c in chunks]
-    vectorizer = TfidfVectorizer(ngram_range=(1,2), min_df=1, stop_words='english')
-    tfidf = vectorizer.fit_transform(texts)
-    return vectorizer, tfidf
+# def build_tfidf_index(chunks: List[Tuple[str, int, int]]):
+#     texts = [c[0] for c in chunks]
+#     vectorizer = TfidfVectorizer(ngram_range=(1,2), min_df=1, stop_words='english')
+#     tfidf = vectorizer.fit_transform(texts)
+#     return vectorizer, tfidf
 
-def query_top_chunks(query: str, chunks: List[Tuple[str,int,int]], vectorizer, tfidf_matrix, top_k=TOP_K_CHUNKS):
-    q_vec = vectorizer.transform([query])
-    cosine_similarities = linear_kernel(q_vec, tfidf_matrix).flatten()
-    ranked_idx = np.argsort(-cosine_similarities)
-    selected = []
-    total_chars = 0
-    for idx in ranked_idx:
-        if cosine_similarities[idx] <= 0:
-            break
-        chunk_text, sp, ep = chunks[idx]
-        if total_chars + len(chunk_text) > MAX_SELECTED_CHARS:
-            continue
-        selected.append((idx, float(cosine_similarities[idx]), chunk_text, sp, ep))
-        total_chars += len(chunk_text)
-        if len(selected) >= top_k:
-            break
-    return selected, cosine_similarities
+# def query_top_chunks(query: str, chunks: List[Tuple[str,int,int]], vectorizer, tfidf_matrix, top_k=TOP_K_CHUNKS):
+#     q_vec = vectorizer.transform([query])
+#     cosine_similarities = linear_kernel(q_vec, tfidf_matrix).flatten()
+#     ranked_idx = np.argsort(-cosine_similarities)
+#     selected = []
+#     total_chars = 0
+#     for idx in ranked_idx:
+#         if cosine_similarities[idx] <= 0:
+#             break
+#         chunk_text, sp, ep = chunks[idx]
+#         if total_chars + len(chunk_text) > MAX_SELECTED_CHARS:
+#             continue
+#         selected.append((idx, float(cosine_similarities[idx]), chunk_text, sp, ep))
+#         total_chars += len(chunk_text)
+#         if len(selected) >= top_k:
+#             break
+#     return selected, cosine_similarities
 
 # ---------------------------
 # Helpers: build LLM blog prompt (exact production)
