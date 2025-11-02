@@ -6,7 +6,7 @@ import time
 from typing import List, Tuple
 
 import streamlit as st
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 import pandas as pd
 import numpy as np
 from PyPDF2 import PdfReader
@@ -27,8 +27,8 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
 # ---------------------------
 # Gemini config
 # ---------------------------
-load_dotenv()
-GENAI_API_KEY = os.getenv("GENAI_API_KEY")
+
+GENAI_API_KEY = st.secrets("GENAI_API_KEY")
 genai.configure(api_key=GENAI_API_KEY)
 
 # Default model and LLM params (same as your production code)
